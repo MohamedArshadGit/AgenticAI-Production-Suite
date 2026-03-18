@@ -1,6 +1,54 @@
-echo ".env
+# Environment variables - never commit these
+.env
+.env.local
+.env.production
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
 .venv/
 venv/
-.DS_Store" > .gitignore
+env/
+ENV/
+
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# LangSmith / LangChain cache
+.langchain.db
+
+# Vector DB local files
+chroma_db/
+*.faiss
+*.pkl
+
+# Redis dump
+dump.rdb
+
+# Docker
+*.env.docker
