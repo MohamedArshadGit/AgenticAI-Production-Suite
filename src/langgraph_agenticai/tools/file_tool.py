@@ -27,11 +27,6 @@ def file_reader_tool(file_path:str)->str:
 
     except PermissionError:
         return f"Error: Permission denied to read '{file_path}'"
+        
     except Exception as e:
         return f"Error reading file: {str(e)}"
-
-
-        
-
-    except:
-        pass

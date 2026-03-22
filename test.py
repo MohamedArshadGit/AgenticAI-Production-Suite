@@ -68,3 +68,19 @@ print(result)
 print("\n" + "=" * 60)
 print("ALL TESTS DONE")
 print("=" * 60)
+
+from src.langgraph_agenticai.tools.currency_tool import currency_converter
+
+print("\n💱 TEST 7: Currency Tool")
+print("-" * 40)
+result = currency_converter.invoke({"amount": 100, "from_currency": "USD", "to_currency": "GBP"})
+print(result)
+
+result = currency_converter.invoke({"amount": 50, "from_currency": "EUR", "to_currency": "INR"})
+print(result)
+
+result = currency_converter.invoke({"amount": 1000, "from_currency": "GBP", "to_currency": "INR"})
+print(result)
+
+result = currency_converter.invoke({"amount": 100, "from_currency": "INVALID", "to_currency": "GBP"})
+print(result)
