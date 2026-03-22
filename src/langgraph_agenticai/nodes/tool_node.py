@@ -1,5 +1,6 @@
 from src.langgraph_agenticai.state.state import State
 from langchain_core.messages import ToolMessage
+from langgraph_agenticai.utils.logger import logger, callback_handler
 
 class Toolnode:
     def __init__(self,tools:list) -> None:
@@ -32,13 +33,28 @@ class Toolnode:
             tool_name =tool_call['name']# Get tool name LLM wants to call  e.g. "calculator"
             tool_args=tool_call['args']# Get arguments LLM wants to pass  e.g. {"expression": "10+10"}
             tool_id=tool_call['id'] # Get tool id — needed for ToolMessage e.g. "call_abc123"
+
+            logger.info("ToolNode", f"Executing tool: {tool_name}",
+                        {"args": tool_args})
             
 
             if tool_name in self.tools_dict:
-                tool=self.tools_dict[tool_name] # get the @tool function
-                result =tool.invoke(tool_args) # run it with args
+
+                try:
+                    tool=self.tools_dict[tool_name] # get the @tool function
+                    result =tool.invoke(tool_args,# run it with args
+                    config={"callbacks": [callback_handler]} # LangGraphCallbackHandler
+                    )
+
+                except Exception as e:
+                    result = f"Error running {tool_name}: {str(e)}"
+                    logger.error("ToolNode", f"Tool failed: {tool_name}",
+                                 {"error": str(e)})
+
             else:
                 result =f'Error: Tool {tool_name} not found'
+                logger.error("ToolNode", "Tool not found",
+                             {"tool_name": tool_name})
             
             results.append(ToolMessage(content=str(result),
             tool_call_id=tool_id))## Wrap result in ToolMessage
