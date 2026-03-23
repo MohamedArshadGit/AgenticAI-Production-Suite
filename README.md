@@ -202,118 +202,149 @@ LANGCHAIN_TRACING_V2=true
 LANGCHAIN_PROJECT=CHATBOT
 
 # Phase 3 — MCP + ReAct Agent + Async Tooling
-What it does
 
-Transforms the chatbot into a true agentic system by introducing:
+## What it does
 
-Dynamic tool usage via MCP (Model Context Protocol)
-ReAct reasoning loop (Reason + Act)
-Async + parallel tool execution
-Self-correcting behaviour based on tool errors
+Transforms the chatbot into a true agentic system:
 
-The agent can:
+- Dynamically uses external tools via MCP
+- Executes tools in parallel
+- Handles errors via ReAct self-correcting reasoning
+- Decouples tools from agent (MCP)
 
-Decide when to call tools
-Call multiple tools in parallel
-Retry intelligently when tool calls fail
-Key capabilities
-ReAct agent (Reason + Act loop)
-LLM decides:
-Respond directly OR
-Call one or more tools
-Tool results are fed back into the agent
-Loop continues until final answer is generated
+## Key Capabilities
 
-Graph logic:
+| Capability | Description |
+|------------|------------|
+| ReAct Agent | LLM decides to respond directly OR call one/multiple tools; tool results are fed back until final answer is produced |
+| Parallel Tool Execution | Multiple tools executed concurrently; results aggregated for LLM |
+| Async Architecture | All tools built with async/await; non-blocking execution for scalability |
 
-agent_node → decision making
-tool_node → executes tools
-conditional edges → route based on tool calls
-tools → agent → loop until completion
-Parallel tool calling
-LLM generates multiple tool calls in a single step
-ToolNode executes all tools concurrently
-Results are aggregated and returned to the agent
-Async architecture
-All MCP tools implemented using async/await
-Tools loaded dynamically at runtime
-Execution bridges sync LangGraph with async tools
-tools = await client.get_tools()
-asyncio.run(tool.ainvoke(args))
-Tools implemented
+Notice how every heading has # or ##, lists use -, and tables use pipes |.
 
-Each tool is:
+If you just copy the rendered text from the browser, it loses all Markdown symbols, which is why your README shows plain text. ✅
 
-@tool decorated (LangChain)
-Uses typed inputs (Pydantic)
-Includes error handling
-Returns clean string output for LLM
-Tool	Description
-Calculator	Mathematical operations (SymPy)
-Currency	Exchange rates
-Datetime	Timezone-aware datetime
-File Reader	Reads local files
-Location	IP-based geolocation
-Web Search	Tavily API
-Weather	OpenWeatherMap API
-MCP server (tool layer)
-Implementation
-Built using FastMCP
-Tools exposed via @mcp.tool() decorators
-Runs independently from agent
-uvicorn tool_server:app --port 8000
+I can take your Phase 3 text and rewrite the full block with proper Markdown hashes, bullets, and tables so that when you paste it into your README, it renders correctly with headings and formatting.
 
-Endpoint:
+Do you want me to do that for the entire Phase 3 section?
 
-http://localhost:8000/mcp
-Why MCP
-Tools are decoupled from agent
-Agent connects dynamically at runtime
-Tools are reusable across systems
-Tool execution flow
+ues
+
+Perfect! Here’s your Phase 3 section fully rewritten in proper Markdown, with hashes, bullets, and tables — ready to paste into your README so it renders correctly:
+
+## Phase 3 — MCP + ReAct Agent + Async Tooling
+
+## What it does
+
+Transforms the chatbot into a true agentic system:
+
+- Dynamically uses external tools via MCP
+- Executes tools in parallel
+- Handles errors via ReAct self-correcting reasoning
+- Decouples tools from agent (MCP)
+
+---
+
+## Key Capabilities
+
+| Capability | Description |
+|------------|------------|
+| ReAct Agent | LLM decides to respond directly OR call one/multiple tools; tool results are fed back until final answer is produced |
+| Parallel Tool Execution | Multiple tools executed concurrently; results aggregated for LLM |
+| Async Architecture | All tools built with async/await; non-blocking execution for scalability |
+
+---
+
+## Graph Logic
+
+
 User Query
-   ↓
+│
+▼
 Agent Node (LLM decides)
-   ↓
-Tool Calls? ── No ──→ Final Answer
-   │
-   Yes
-   ↓
-Tool Node (parallel execution)
-   ↓
+│
+├─ No tools → Final Answer
+│
+└─ Yes → Tool Node (parallel execution)
+│
+▼
 Tool Results
-   ↓
-Back to Agent (loop)
-   ↓
-Final Answer
-Self-correcting behaviour (ReAct)
+│
+▼
+Back to Agent → Loop until final answer
+
+
+---
+
+## Tools Implemented
+
+| Tool | Description |
+|------|------------|
+| Calculator | Mathematical operations (SymPy) |
+| Currency | Exchange rates |
+| Datetime | Timezone-aware datetime |
+| File Reader | Reads local files |
+| Location | IP-based geolocation |
+| Web Search | Tavily API |
+| Weather | OpenWeatherMap API |
+
+---
+
+## MCP Server (Decoupled Tool Layer)
+
+- Built using **FastMCP**
+- Tools exposed via `@mcp.tool()` decorator
+- Runs independently:  
+  ```bash
+  uvicorn tool_server:app --port 8000
+Endpoint: http://localhost:8000/mcp
+Why MCP: Tools are reusable and dynamically loaded by any agent
+Self-Correcting Behavior (ReAct)
 
 Example:
 
 Weather tool fails due to missing coordinates
 LLM reads validation error
-Infers correct inputs
+Infers correct coordinates
 Retries tool call successfully
-Observability (extended)
+Returns correct answer
+Observability (Extended)
 
 Tool-level logging added on top of Phase 2:
 
 Layer	What it captures
-JSON Logger	Tool name, inputs, outputs, errors
-LangSmith	Full execution trace + latency
-CallbackHandler	on_tool_start, on_tool_end
-Key files
-nodes/agent_node.py — ReAct agent node
-nodes/tool_node.py — executes tool calls
-tools/*.py — all tool implementations
-tools/mcp_server/tool_server.py — MCP server
-graph/graph_builder.py — updated with tool loop
+JSON Logger	Tool name, input, output, errors
+LangSmith	Full execution trace, latency
+Callback hooks	on_tool_start, on_tool_end
+Key Files
+File	Purpose
+nodes/agent_node.py	ReAct agent node
+nodes/tool_node.py	Executes tool calls
+tools/*.py	Tool implementations
+tools/mcp_server/tool_server.py	MCP server
+graph/graph_builder.py	Updated with tool loop and conditional edges
 What this phase achieves
 Converts chatbot → agentic AI system
-Enables tool reasoning + execution
-Supports parallel + async workflows
-Implements MCP-based architecture
+Introduces tool reasoning + execution
+Enables parallel + async workflows
+Implements MCP architecture
 Demonstrates real ReAct reasoning
+Run
+# Run Streamlit UI
+streamlit run streamlitui/app.py
+
+# Or run via main.py
+python main.py
+Tech Stack
+Layer	Technology
+LLM	ChatGroq (llama3-70b-8192)
+Agent framework	LangGraph
+LLM toolkit	LangChain
+UI	Streamlit
+Observability	LangSmith + custom JSON logger
+Tool protocol (Phase 3)	MCP (FastMCP)
+Web search	Tavily
+Weather	OpenWeatherMap
 ```
 
 ### Run
