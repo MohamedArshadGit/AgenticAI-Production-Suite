@@ -8,12 +8,34 @@ from src.langgraph_agenticai.graph.graph_builder import GraphBuilder
 from src.langgraph_agenticai.ui.streamlitui.display_result import DisplayResultStreamlit
 from src.langgraph_agenticai.utils.logger import logger,callback_handler
 
+from langchain_mcp_adapters.client import MultiServerMCPClient #MCP Client +Tools
+import asyncio
+
 import os
 os.environ['LANGCHAIN_TRACING_V2'] = 'true'
 os.environ['LANGCHAIN_PROJECT'] = 'CHATBOT'
 
 from dotenv import load_dotenv
 load_dotenv()
+
+async def get_tools_from_mcp():
+    """
+    Connects to MCP tools server and retrieves all 7 tools.
+    MCP server must be running on localhost:8000 before calling this.
+    """
+
+    client = MultiServerMCPClient(
+        {
+            "chatbot_tools": {
+                "url": "http://localhost:8000/mcp",
+                "transport": "streamable_http"
+            }
+        }
+    )
+    tools = await client.get_tools()  
+    logger.info("Main", "Tools fetched from MCP server",
+                    {"tools_count": len(tools)})
+    return tools
 
 
 def load_langgraph_agenticai_app():
@@ -59,10 +81,24 @@ def load_langgraph_agenticai_app():
             if not usecase:
                 st.error('Error: No use Case Selected .Please select Any one of the UseCase')
                 return
+                
+            tools = None
+            if usecase == "Tools + ReAct":
+                try:
+                    tools = asyncio.run(get_tools_from_mcp())
+                    print(f"DEBUG tools fetched: {len(tools)} tools")
+                    logger.info("Main", "MCP tools loaded",
+                                {"tools": [t.name for t in tools]})
+                except Exception as e:
+                    print(f"DEBUG MCP error: {e}")
+                    logger.error("Main", "MCP server not reachable", {"error": str(e)})
+                    st.error("Error: MCP Tools Server is not running. Please start it:\n"
+                            "python src/langgraph_agenticai/tools/mcp_server/tool_server.py")
+                    return
 
             graph_builder =GraphBuilder(model) #GraphBuilder Class
             try:
-                graph =graph_builder.setup_graph(usecase=usecase)
+                graph =graph_builder.setup_graph(usecase=usecase,tools=tools)
                 config = {"callbacks": [callback_handler]} #tells LangGraph:"whenever you run, call these callback methods automatically so on_chain_start, on_llm_start etc all fire automatically
                 logger.info("Main", "Graph built", {"usecase": usecase}) 
 

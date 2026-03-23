@@ -10,8 +10,8 @@
 |-------|-------------|--------|
 | Phase 1 | Basic chatbot — LangGraph loop + Streamlit UI | ✅ Done |
 | Phase 2 | 3-layer logging — JSON logger + LangSmith + BaseCallbackHandler | ✅ Done |
-| Phase 3 | Tools + ReAct agent — calculator, datetime, web search, weather, news, file reader | 🔄 Next |
-| Phase 4 | Router + Human-in-the-loop | ⏳ Planned |
+| Phase 3 | Tools + ReAct agent — calculator, datetime, web search, weather, news, file reader | ✅ Done |
+| Phase 4 | Router + Human-in-the-loop | ⏳ Next |
 | Phase 5 | Orchestrator-worker multi-agent | ⏳ Planned |
 | Phase 6 | Redis memory — username-based persistent sessions | ⏳ Planned |
 | Phase 7 | RAG + Corrective RAG + Adaptive RAG | ⏳ Planned |
@@ -25,27 +25,53 @@
 
 ```
 CHATBOT/
-├── state/
-│   └── chatbot_state.py          # TypedDict state shared across all nodes
-├── nodes/
-│   ├── __init__.py
-│   └── chatbot_node.py           # Core node — every node has __init__(model) + process(state)
-├── graph/
-│   └── graph_builder.py          # Builds and compiles the LangGraph StateGraph
-├── llms/
-│   └── llm_factory.py            # LLM initialisation (ChatGroq)
-├── streamlitui/
-│   └── app.py                    # Streamlit frontend
-├── utils/
-│   └── logger.py                 # Structured JSON logger
-├── tests/
-│   └── test_chatbot_node.py      # DeepEval + RAGAS tests (Phase 9)
 ├── logs/
-│   └── chatbot.log               # Auto-generated JSON log file
-├── main.py                       # Entry point
-├── .env                          # API keys (never commit)
-├── .env.example                  # Template for environment variables
-├── requirements.txt
+│   └── app.log
+├── src/
+│   ├── app.py                      # Entry UI runner
+│   └── langgraph_agenticai/
+│       ├── main.py                 # App entry point
+│
+│       ├── graph/
+│       │   └── graph_builder.py    # LangGraph workflow + ReAct loop
+│
+│       ├── llms/
+│       │   └── groqllm.py          # ChatGroq initialisation
+│
+│       ├── nodes/
+│       │   ├── basic_chatbot_node.py
+│       │   ├── agent_node.py       # ReAct agent node
+│       │   └── tool_node.py        # Executes tool calls
+│
+│       ├── state/
+│       │   └── state.py            # TypedDict state
+│
+│       ├── tools/
+│       │   ├── calculator_tool.py
+│       │   ├── currency_tool.py
+│       │   ├── datetime_tool.py
+│       │   ├── file_tool.py
+│       │   ├── location_tool.py
+│       │   ├── search_tool.py
+│       │   ├── weather_tool.py
+│       │
+│       │   └── mcp_server/
+│       │       └── tool_server.py  # FastMCP server (localhost:8000/mcp)
+│
+│       ├── ui/
+│       │   └── streamlitui/
+│       │       ├── loadui.py
+│       │       └── display_result.py
+│
+│       ├── utils/
+│       │   └── logger.py           # JSON structured logging
+│
+│       └── tests/
+│           ├── test.py
+│           └── test_graph_visualise.py
+│
+├── .env
+├── .gitignore
 └── README.md
 ```
 
@@ -175,10 +201,119 @@ LANGCHAIN_API_KEY=
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_PROJECT=CHATBOT
 
-# Phase 3 — Tools (add when starting Phase 3)
-TAVILY_API_KEY=
-OPENWEATHER_API_KEY=
-NEWS_API_KEY=
+# Phase 3 — MCP + ReAct Agent + Async Tooling
+What it does
+
+Transforms the chatbot into a true agentic system by introducing:
+
+Dynamic tool usage via MCP (Model Context Protocol)
+ReAct reasoning loop (Reason + Act)
+Async + parallel tool execution
+Self-correcting behaviour based on tool errors
+
+The agent can:
+
+Decide when to call tools
+Call multiple tools in parallel
+Retry intelligently when tool calls fail
+Key capabilities
+ReAct agent (Reason + Act loop)
+LLM decides:
+Respond directly OR
+Call one or more tools
+Tool results are fed back into the agent
+Loop continues until final answer is generated
+
+Graph logic:
+
+agent_node → decision making
+tool_node → executes tools
+conditional edges → route based on tool calls
+tools → agent → loop until completion
+Parallel tool calling
+LLM generates multiple tool calls in a single step
+ToolNode executes all tools concurrently
+Results are aggregated and returned to the agent
+Async architecture
+All MCP tools implemented using async/await
+Tools loaded dynamically at runtime
+Execution bridges sync LangGraph with async tools
+tools = await client.get_tools()
+asyncio.run(tool.ainvoke(args))
+Tools implemented
+
+Each tool is:
+
+@tool decorated (LangChain)
+Uses typed inputs (Pydantic)
+Includes error handling
+Returns clean string output for LLM
+Tool	Description
+Calculator	Mathematical operations (SymPy)
+Currency	Exchange rates
+Datetime	Timezone-aware datetime
+File Reader	Reads local files
+Location	IP-based geolocation
+Web Search	Tavily API
+Weather	OpenWeatherMap API
+MCP server (tool layer)
+Implementation
+Built using FastMCP
+Tools exposed via @mcp.tool() decorators
+Runs independently from agent
+uvicorn tool_server:app --port 8000
+
+Endpoint:
+
+http://localhost:8000/mcp
+Why MCP
+Tools are decoupled from agent
+Agent connects dynamically at runtime
+Tools are reusable across systems
+Tool execution flow
+User Query
+   ↓
+Agent Node (LLM decides)
+   ↓
+Tool Calls? ── No ──→ Final Answer
+   │
+   Yes
+   ↓
+Tool Node (parallel execution)
+   ↓
+Tool Results
+   ↓
+Back to Agent (loop)
+   ↓
+Final Answer
+Self-correcting behaviour (ReAct)
+
+Example:
+
+Weather tool fails due to missing coordinates
+LLM reads validation error
+Infers correct inputs
+Retries tool call successfully
+Observability (extended)
+
+Tool-level logging added on top of Phase 2:
+
+Layer	What it captures
+JSON Logger	Tool name, inputs, outputs, errors
+LangSmith	Full execution trace + latency
+CallbackHandler	on_tool_start, on_tool_end
+Key files
+nodes/agent_node.py — ReAct agent node
+nodes/tool_node.py — executes tool calls
+tools/*.py — all tool implementations
+tools/mcp_server/tool_server.py — MCP server
+graph/graph_builder.py — updated with tool loop
+What this phase achieves
+Converts chatbot → agentic AI system
+Enables tool reasoning + execution
+Supports parallel + async workflows
+Implements MCP-based architecture
+Demonstrates real ReAct reasoning
 ```
 
 ### Run

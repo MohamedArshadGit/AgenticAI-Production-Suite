@@ -3,13 +3,15 @@
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.append(
+    r"C:\Users\Mohamed Arshad\Downloads\My_RAG_Lab\MultiAgent-LLM-Agent-Orchestrator_lab\CHATBOT\src"
+)
 
-from src.langgraph_agenticai.tools.location_tool import get_location
-from src.langgraph_agenticai.tools.datetime_tool import get_datetime
-from src.langgraph_agenticai.tools.calculator_tool import calculator
-from src.langgraph_agenticai.tools.search_tool import search_web
-from src.langgraph_agenticai.tools.weather_tool import get_weather
+from langgraph_agenticai.tools.location_tool import get_location
+from langgraph_agenticai.tools.datetime_tool import get_datetime
+from langgraph_agenticai.tools.calculator_tool import calculator
+from langgraph_agenticai.tools.search_tool import search_web
+from langgraph_agenticai.tools.weather_tool import get_weather
 print("=" * 60)
 print("TOOL TESTS")
 print("=" * 60)
@@ -69,7 +71,7 @@ print("\n" + "=" * 60)
 print("ALL TESTS DONE")
 print("=" * 60)
 
-from src.langgraph_agenticai.tools.currency_tool import currency_converter
+from langgraph_agenticai.tools.currency_tool import currency_converter
 
 print("\n💱 TEST 7: Currency Tool")
 print("-" * 40)

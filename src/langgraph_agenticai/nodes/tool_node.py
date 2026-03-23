@@ -1,6 +1,7 @@
-from src.langgraph_agenticai.state.state import State
+from langgraph_agenticai.state.state import State
 from langchain_core.messages import ToolMessage
 from langgraph_agenticai.utils.logger import logger, callback_handler
+import asyncio
 
 class Toolnode:
     def __init__(self,tools:list) -> None:
@@ -42,9 +43,10 @@ class Toolnode:
 
                 try:
                     tool=self.tools_dict[tool_name] # get the @tool function
-                    result =tool.invoke(tool_args,# run it with args
+                    # MCP tools are async — use asyncio.run() to call them
+                    result = asyncio.run(tool.ainvoke(tool_args,# run it with args
                     config={"callbacks": [callback_handler]} # LangGraphCallbackHandler
-                    )
+                    ))
 
                 except Exception as e:
                     result = f"Error running {tool_name}: {str(e)}"

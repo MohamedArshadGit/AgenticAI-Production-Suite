@@ -1,6 +1,6 @@
 from langchain_core.messages import SystemMessage
-from src.langgraph_agenticai.state.state import State
-from src.langgraph_agenticai.utils.logger import logger,callback_handler
+from langgraph_agenticai.state.state import State
+from langgraph_agenticai.utils.logger import logger,callback_handler
 
 class Agentnode:
     def __init__(self,model,tools):
@@ -19,18 +19,31 @@ class Agentnode:
         LLM decides to reply or call a tool
         Returns updated messages
         """
-        logger.info("AgentNode", "AgentNode started",
-                    {"messages_count": len(state["messages"])})
+        # count how many tool calls have happened so far
+        tool_call_count = sum(
+            1 for m in state["messages"]
+            if hasattr(m, "tool_calls") and m.tool_calls
+        )
 
-        system_prompt =SystemMessage(content="""
+        # if too many tool calls → force stop
+        if tool_call_count >= 10:
+            logger.warning("AgentNode", "Max tool calls reached, forcing stop")
+            from langchain_core.messages import AIMessage
+            return {"messages": [AIMessage(content="I was unable to complete the task after multiple attempts.")]}
+            logger.info("AgentNode", "AgentNode started",
+                        {"messages_count": len(state["messages"])})
+
+        system_prompt =system_prompt = SystemMessage(content="""
         You are a helpful AI assistant with access to the following tools:
-        - datetime  : Get current date and time for any timezone
-        - calculator: Solve any math expression
-        - location  : Get user's current location
-        - search    : Search the web for latest information
-        - weather   : Get weather for any city
-        - file      : Read contents of a text file
-        - currency  : Convert between currencies
+        - datetime_tool           : Get current date and time for any timezone
+        - calculator_tool         : Solve any math expression
+        - location_tool           : Get user's current location
+        - search_tool             : Search the web for latest information
+        - weather_tool            : Get weather for any city
+        - file_tool               : Read contents of a text file
+        - currency_converter_tool : Convert between currencies
+
+        Always use the EXACT tool names listed above when calling tools.
 
         Use tools when needed. If you can answer directly, do so.
         Always give clear and helpful responses.

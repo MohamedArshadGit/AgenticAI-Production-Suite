@@ -1,5 +1,5 @@
-from src.langgraph_agenticai.state.state import State
-from src.langgraph_agenticai.utils.logger import logger
+from langgraph_agenticai.state.state import State
+from langgraph_agenticai.utils.logger import logger
 
 class BasicChatbotNode:
     

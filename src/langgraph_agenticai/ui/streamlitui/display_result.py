@@ -1,4 +1,5 @@
 import streamlit as st
+from langchain_core.messages import AIMessage, ToolMessage, HumanMessage
 
 class DisplayResultStreamlit:
     def __init__(self,usecase,graph,user_message,config={}) :
@@ -37,3 +38,35 @@ class DisplayResultStreamlit:
                             st.write(user_message)
                         with st.chat_message("assistant"):
                             st.write(value["messages"].content)
+        elif usecase == "Tools + ReAct":
+            with st.chat_message("user"):
+                st.write(user_message)
+
+            # stream through all graph events
+            for event in graph.stream(
+                {'messages': [HumanMessage(content=user_message)]},
+                config
+            ):
+                print(f"DEBUG event: {event}")
+
+                for node_name, node_output in event.items():
+                    messages = node_output.get("messages", [])
+
+                    for message in messages:
+
+                        # tool call — show which tool is being used
+                        if isinstance(message, AIMessage) and message.tool_calls:
+                            for tool_call in message.tool_calls:
+                                with st.chat_message("assistant"):
+                                    st.info(f"🔧 Using tool: `{tool_call['name']}` "
+                                            f"with args: `{tool_call['args']}`")
+
+                        # tool result — show raw result
+                        elif isinstance(message, ToolMessage):
+                            with st.chat_message("assistant"):
+                                st.success(f"✅ Tool result: {message.content}")
+
+                        # final answer — show to user
+                        elif isinstance(message, AIMessage) and message.content:
+                            with st.chat_message("assistant"):
+                                st.write(message.content)
