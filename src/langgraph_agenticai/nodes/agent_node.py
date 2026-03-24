@@ -1,6 +1,23 @@
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage,AIMessage,HumanMessage
 from langgraph_agenticai.state.state import State
 from langgraph_agenticai.utils.logger import logger,callback_handler
+import json
+
+from pydantic import BaseModel,Field
+from typing import Literal
+
+#ambiguity result(pattern 6) Schema
+class AmbiguityResult(BaseModel):
+     """Schema for ambiguity detection response"""
+     status:Literal["AMBIGUOUS", "CLEAR"]=Field(
+        description="Whether the message is ambiguous or clear")
+     option: list[str]=Field(
+        default=[],
+        description="Exactly 3 interpretations if AMBIGUOUS, empty list if CLEAR",
+        min_length=0,
+        max_length=3
+     )
+
 
 class Agentnode:
     def __init__(self,model,tools):
@@ -12,26 +29,37 @@ class Agentnode:
         self.model=model
         self.model_with_tools=model.bind_tools(tools) # bind_tools tells LLM about available tools
 
+        # ── structured output models ──────────────────────
+        # SEPARATE model instances just for structured checks
+        self.ambiguity_checker = model.with_structured_output(AmbiguityResult)
+
     def process(self,state:State)->dict:
         """
         Receives current state
         Passes messages to LLM
         LLM decides to reply or call a tool
-        Returns updated messages
+        Returns updated messages + HITL fields if needed
         """
-        # count how many tool calls have happened so far
+        # Recursion Guard (count how many tool calls have happened so far)
         tool_call_count = sum(
             1 for m in state["messages"]
-            if hasattr(m, "tool_calls") and m.tool_calls
+            if hasattr(m, "tool_calls") and m.tool_calls #hasattr checks tool call and wont crash if message doesn't have tool_calls.
         )
 
-        # if too many tool calls → force stop
+        # if too many tool calls → force stop #here how tool calling is working???????
         if tool_call_count >= 10:
             logger.warning("AgentNode", "Max tool calls reached, forcing stop")
-            from langchain_core.messages import AIMessage
+        
             return {"messages": [AIMessage(content="I was unable to complete the task after multiple attempts.")]}
-            logger.info("AgentNode", "AgentNode started",
+
+        logger.info("AgentNode", "AgentNode started",
                         {"messages_count": len(state["messages"])})
+        
+        # — ambiguity check FIRST 
+        ambiguity_result =self._check_ambiguity(state)
+        if ambiguity_result:
+            logger.info("AgentNode", "Ambiguity detected — HITL triggered")
+            return ambiguity_result
 
         system_prompt =system_prompt = SystemMessage(content="""
         You are a helpful AI assistant with access to the following tools:
@@ -44,7 +72,6 @@ class Agentnode:
         - currency_converter_tool : Convert between currencies
 
         Always use the EXACT tool names listed above when calling tools.
-
         Use tools when needed. If you can answer directly, do so.
         Always give clear and helpful responses.
         """)
@@ -66,4 +93,81 @@ class Agentnode:
         logger.info("AgentNode", "AgentNode finished")
         return {"messages":[response]} # Why [response] in a list? LangGraph APPENDS response to existing messages and add_messages expects a list
 
+    #Sensitive Tool Detection
+    def _check_sensitive_tools(sef,response)->list:
+        """
+        Returns list of sensitive tools LLM wants to call
+        Empty list = no sensitive tools
+
+        """
+        sensitive_tool_names = ["search_tool", "location_tool"]
+        requested_tools =[t['name'] for t in response.tool_calls]
+        return [t for t in requested_tools if t in sensitive_tool_names] #return sensitive tool only if is it in requested tools
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #pattern 6
+    def _check_ambiguity(self,state:State)-> dict|None:
+        """
+        Checks if last user message is ambiguous
+        Uses lightweight LLM call with strict prompt
+        Returns HITL dict if ambiguous, else None
+        """
+        last_human =None
+        for m in reversed(state['messages']): #reversed() loops messages backwards (latest first).
+            if isinstance(m,HumanMessage): # isinstance always returns either True or False. Nothing else.y needed? to skip AI/Tool/System msgs, only want Humanmessage and to check if true continue or else skip
+                last_human=m.content
+                break
     
+        if not last_human:
+            return None
+        
+        # short messages are likely ambiguous
+        # long detailed messages are likely clear
+        if len(last_human.split())>8:
+            return None  #skip check for long messages — likely clear
+
+        try:
+            #ask llm if message is ambiguos
+            result: AmbiguityResult = self.ambiguity_checker.invoke([ # result: Ambi.. is called type hint. It is just a label for YOU and your code editor. It does NOT change how the code runs.
+                    SystemMessage(content="""
+                You are an ambiguity detector.
+                    Decide if the user message is AMBIGUOUS or CLEAR.
+                    AMBIGUOUS = multiple possible interpretations exist.
+                    CLEAR     = only one obvious interpretation.
+                    If AMBIGUOUS, provide exactly 3 distinct interpretations in 'options'.
+                    If CLEAR, leave 'options' as an empty list.
+                """),HumanMessage(content=f'User_Message:{last_human}')]
+            )
+        except Exception as e:
+            logger.warning("AgentNode", "Structured ambiguity check failed, skipping", {"error": str(e)})
+            return None  # fail safe — don't block the user
+        
+        if result.status =='AMBIGUOUS' and len(result.option)>=2:
+            logger.info("AgentNode", "Ambiguity detected", {"options": result.options})
+            return {
+                "messages"        : [], # here what it means empty means?
+                "hitl_required"   : True,
+                "hitl_pattern"    : "ambiguity",
+                "hitl_approved"   : None,
+                "hitl_message"    : "Your message could mean multiple things. Please select:",
+                "hitl_options"    : result.options,
+                "confidence_score": None,
+                "sensitive_tools" : None
+
+            }
+        return None
+        
+
+        
