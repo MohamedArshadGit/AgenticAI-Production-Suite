@@ -37,8 +37,9 @@ llm = ChatGroq(
 )
 
 # ── build graph ─────────────────────────────────────────────
-graph = GraphBuilder(llm).setup_graph("Tools + ReAct", tools=tools)
+#graph = GraphBuilder(llm).setup_graph("Tools + ReAct ", tools=tools)
 
+graph = GraphBuilder(llm).setup_graph("Tools + ReAct + HITL", tools=tools)
 
 png_bytes = graph.get_graph().draw_mermaid_png()
 output_path = r"C:\Users\Mohamed Arshad\Downloads\My_RAG_Lab\MultiAgent-LLM-Agent-Orchestrator_lab\CHATBOT\src\langgraph_agenticai\tests\graph_visual.png"

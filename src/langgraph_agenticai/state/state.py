@@ -13,7 +13,7 @@ class State(TypedDict):
     ─────────────────────────── HITL fields ───────────────────────────
     hitl_required      : True if HITL pause needed
     hitl_pattern       : which pattern triggered
-                         "sensitive_tool" / "confidence" / "ambiguity"
+                         "sensitive_tool" / "ambiguity"
     hitl_approved      : True=approved, False=rejected, None=pending
     hitl_message       : message shown to user in approval UI
     hitl_options       : list of options for ambiguity resolution
@@ -28,6 +28,6 @@ class State(TypedDict):
     hitl_approved      : Optional[bool]          # user decision
     hitl_message       : Optional[str]           # shown in UI
     hitl_options       : Optional[List[str]]     # ambiguity options (Pattern 6)
-    confidence_score   : Optional[float]         # 0-100 (Pattern 4)
+    #confidence_score   : Optional[float]         # 0-100 (Pattern 4)
     sensitive_tools    : Optional[List[str]]     # tools needing approval (Pattern 1)
 

@@ -21,10 +21,10 @@ class Toolnode:
 
     def process(self,state:State)->dict:
         """
-        Reads last message from state (AIMessage with tool_calls)
+        Reads last message from state (AIMessage which has tool_calls)
         Finds which tool to run
         Runs the tool
-        Returns result as ToolMessage
+        Returns ToolMessages + resets HITL fields.
         """
         last_message =state['messages'][-1] #last([-1]) has AIMessage from agent_node-> It contains tool_calls list ..so we are accessing that using this varible last_message
 
@@ -35,11 +35,10 @@ class Toolnode:
             tool_args=tool_call['args']# Get arguments LLM wants to pass  e.g. {"expression": "10+10"}
             tool_id=tool_call['id'] # Get tool id — needed for ToolMessage e.g. "call_abc123"
 
-            logger.info("ToolNode", f"Executing tool: {tool_name}",
-                        {"args": tool_args})
-            
 
             if tool_name in self.tools_dict:
+                logger.info("ToolNode", f"Executing tool: {tool_name}",
+                        {"args": tool_args})
 
                 try:
                     tool=self.tools_dict[tool_name] # get the @tool function
@@ -66,5 +65,16 @@ class Toolnode:
             # Tool ran and got result
             # ToolMessage says "this result belongs to call_abc123"
             # LLM can now match result to its original request
-
-        return {"messages":results} # Return all tool results — LangGraph appends to state
+        logger.info("ToolNode", "ToolNode finished",
+                    {"tools_executed": len(results)})
+                    
+        # Return all tool results — LangGraph appends to state
+        return {
+            "messages"       : results,
+            "hitl_required"  : False,  # reset — agent_node won't trigger another HITL pause
+            "hitl_pattern"   : None,   # reset — no pattern active anymore
+            "hitl_approved"  : None,   # reset — old approval decision cleared
+            "hitl_message"   : None,   # reset — no message to show user
+            "hitl_options"   : None,   # reset — no ambiguity options left
+            "sensitive_tools": None,   # reset — sensitive tool list cleared
+        }

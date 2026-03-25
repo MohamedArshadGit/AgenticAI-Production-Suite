@@ -61,7 +61,7 @@ class Agentnode:
             logger.info("AgentNode", "Ambiguity detected — HITL triggered")
             return ambiguity_result
 
-        system_prompt =system_prompt = SystemMessage(content="""
+        system_prompt = SystemMessage(content="""
         You are a helpful AI assistant with access to the following tools:
         - datetime_tool           : Get current date and time for any timezone
         - calculator_tool         : Solve any math expression
@@ -79,8 +79,26 @@ class Agentnode:
         try:
             response =self.model_with_tools.invoke(messages,
             config={"callbacks": [callback_handler]} # LangGraphCallbackHandler(logs)
-            )  
-            if response.tool_calls:
+            )
+
+            if getattr(response, "tool_calls", None): #instead of if response.tools(unsafe)
+                # sensitive tool check
+                sensitive = self._check_sensitive_tools(response)
+                if sensitive:
+                    logger.info("AgentNode", "Sensitive tools detected — HITL triggered",
+                                {"tools": sensitive})
+                    return {
+                        "messages":[response], #That response object contains the LLM's decision to call the tool or not and what user rejects the tool use or not details etc
+                        "hitl_required"   : True,
+                        "hitl_pattern"    : "sensitive_tool",
+                        "hitl_approved"   : None,
+                        "hitl_message"    : f"Agent wants to use sensitive tools: {', '.join(sensitive)}. Allow?",
+                        "sensitive_tools" : sensitive,
+                        #"confidence_score": None,
+                        "hitl_options"    : None
+                    }
+
+
                 logger.info("AgentNode", "LLM decided to call tools",
                             {"tools": [t["name"] for t in response.tool_calls]})
             else:
@@ -93,8 +111,8 @@ class Agentnode:
         logger.info("AgentNode", "AgentNode finished")
         return {"messages":[response]} # Why [response] in a list? LangGraph APPENDS response to existing messages and add_messages expects a list
 
-    #Sensitive Tool Detection
-    def _check_sensitive_tools(sef,response)->list:
+    #Sensitive Tool Detection method
+    def _check_sensitive_tools(self,response)->list:
         """
         Returns list of sensitive tools LLM wants to call
         Empty list = no sensitive tools
@@ -104,20 +122,7 @@ class Agentnode:
         requested_tools =[t['name'] for t in response.tool_calls]
         return [t for t in requested_tools if t in sensitive_tool_names] #return sensitive tool only if is it in requested tools
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    #pattern 6
+    #check ambiguity method
     def _check_ambiguity(self,state:State)-> dict|None:
         """
         Checks if last user message is ambiguous
@@ -135,7 +140,7 @@ class Agentnode:
         
         # short messages are likely ambiguous
         # long detailed messages are likely clear
-        if len(last_human.split())>8:
+        if len(last_human.split())>6:
             return None  #skip check for long messages — likely clear
 
         try:
@@ -151,23 +156,26 @@ class Agentnode:
                 """),HumanMessage(content=f'User_Message:{last_human}')]
             )
         except Exception as e:
-            logger.warning("AgentNode", "Structured ambiguity check failed, skipping", {"error": str(e)})
+            logger.error("AgentNode", "Structured ambiguity check failed, skipping", {"error": str(e)})
             return None  # fail safe — don't block the user
         
         if result.status =='AMBIGUOUS' and len(result.option)>=2:
-            logger.info("AgentNode", "Ambiguity detected", {"options": result.options})
+            logger.info("AgentNode", "Ambiguity detected", {"options": result.option})
             return {
-                "messages"        : [], # here what it means empty means?
+                "messages"        : [],
                 "hitl_required"   : True,
                 "hitl_pattern"    : "ambiguity",
                 "hitl_approved"   : None,
                 "hitl_message"    : "Your message could mean multiple things. Please select:",
-                "hitl_options"    : result.options,
-                "confidence_score": None,
+                "hitl_options"    : result.option,
+                #"confidence_score": None,
                 "sensitive_tools" : None
 
             }
         return None
-        
-
+        # y "messages": [], is empty here
+        # User said:  "fix it"       ← ambiguous, short message
+        # Pattern 6 runs BEFORE LLM is even called
+        # LLM has not done anything yet
+        # There is no response object
         
