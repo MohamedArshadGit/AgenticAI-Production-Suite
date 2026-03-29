@@ -103,9 +103,12 @@ class GraphBuilder:
     #phase 4 -> HITL + ReAct
     def hitl_chatbot_build_graph(self, tools: list):
         self.graph_builder =StateGraph(State)
-        self.agent_node =Agentnode(self.llm,tools)
-        self.tool_node=Toolnode(tools)
-        self.hitl_node=HITLNode()
+        self.agent_node =Agentnode(self.llm,tools) # the brain — LLM + tools
+#                               ^^^^^^^^  ^^^^^
+#                               stored    local — only exists here
+#                               on self   not stored anywhere
+        self.tool_node=Toolnode(tools) #the hands — actually runs tools
+        self.hitl_node=HITLNode() #the pause point — does nothing
 
         #add nodes
         self.graph_builder.add_node('agent',self.agent_node.process)

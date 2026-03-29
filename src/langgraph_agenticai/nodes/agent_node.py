@@ -41,12 +41,15 @@ class Agentnode:
         Returns updated messages + HITL fields if needed
         """
         # Recursion Guard (count how many tool calls have happened so far)
+        # counts AIMessages with tool_calls in full history
+        # e.g. if LLM looped 10 times requesting tools → something is wrong
+        # tool_call_count = how many times agent looped back to call tools. Not how many tools. 4 tools in one shot = count of 1. Only hits 10 if something is seriously broken.
         tool_call_count = sum(
             1 for m in state["messages"]
-            if hasattr(m, "tool_calls") and m.tool_calls #hasattr checks tool call and wont crash if message doesn't have tool_calls.
+            if hasattr(m, "tool_calls") and m.tool_calls # hasattr → safe check, if HumanMessage/ToolMessage don't have tool_calls it wont crash
         )
 
-        # if too many tool calls → force stop #here how tool calling is working???????
+        # safety guard — LLM stuck in tool loop → force stop and reply safely
         if tool_call_count >= 10:
             logger.warning("AgentNode", "Max tool calls reached, forcing stop")
         
@@ -178,4 +181,18 @@ class Agentnode:
         # Pattern 6 runs BEFORE LLM is even called
         # LLM has not done anything yet
         # There is no response object
-        
+
+# Explanation for tool count       
+# "weather in my location + iran news + 10+10 + read file"
+# LLM calls all 4 tools in one shot — that is 1 AIMessage:
+# AIMessage → tool_calls: [weather, search, calculator, file]  ← count = 1
+# All 4 tools run, come back, LLM gives final answer. Done. Count never reaches 10.
+
+# When would count increase?
+# Only if LLM keeps looping — calling tools again and again:
+# AIMessage → tool_calls: [weather, search, calculator, file]  ← count = 1
+# AIMessage → tool_calls: [weather, search, calculator, file]  ← count = 2
+# AIMessage → tool_calls: [weather, search, calculator, file]  ← count = 3
+# ... something is broken, LLM stuck in loop ...
+# AIMessage → tool_calls: [weather, search, calculator, file]  ← count = 10
+# → STOP
