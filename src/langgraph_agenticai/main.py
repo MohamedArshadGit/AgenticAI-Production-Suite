@@ -12,7 +12,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient #MCP Client +Tool
 import asyncio
 
 import os
-os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+os.environ['LANGCHAIN_TRACING_V2'] = 'false'
 os.environ['LANGCHAIN_PROJECT'] = 'CHATBOT'
 
 from dotenv import load_dotenv
@@ -63,6 +63,11 @@ def load_langgraph_agenticai_app():
     
     user_message = st.chat_input("Enter your message:") 
 
+    # Show HITL UI even when no new message (after st.rerun())
+    if st.session_state.get("hitl_pending", False):
+        usecase = user_input.get('selected_usecase')
+        DisplayResultStreamlit(usecase, None, None, {}).display_result_on_ui()
+
     if user_message:
         try:
             logger.info("Main", "App started", {"message": user_message}) 
@@ -83,7 +88,8 @@ def load_langgraph_agenticai_app():
                 return
                 
             tools = None
-            if usecase == "Tools + ReAct":
+            # fetches tools for BOTH usecases
+            if usecase in ["Tools + ReAct", "Tools + ReAct + HITL"]:
                 try:
                     tools = asyncio.run(get_tools_from_mcp())
                     print(f"DEBUG tools fetched: {len(tools)} tools")
@@ -98,18 +104,26 @@ def load_langgraph_agenticai_app():
 
             graph_builder =GraphBuilder(model) #GraphBuilder Class
             try:
-                graph =graph_builder.setup_graph(usecase=usecase,tools=tools)
-                config = {"callbacks": [callback_handler]} #tells LangGraph:"whenever you run, call these callback methods automatically so on_chain_start, on_llm_start etc all fire automatically
-                logger.info("Main", "Graph built", {"usecase": usecase}) 
+                # reuse existing graph for HITL to preserve memory across messages
+                # rebuild only if usecase changed or first time
+                if (usecase == "Tools + ReAct + HITL" and 
+                    "persistent_graph" in st.session_state and
+                    st.session_state.get("persistent_usecase") == usecase):
+                    graph = st.session_state.persistent_graph
+                    logger.info("Main", "Reusing existing graph", {"usecase": usecase})
+                else:
+                    graph = graph_builder.setup_graph(usecase=usecase, tools=tools)
+                    if usecase == "Tools + ReAct + HITL":
+                        st.session_state.persistent_graph = graph
+                        st.session_state.persistent_usecase = usecase
+                    logger.info("Main", "Graph built", {"usecase": usecase})
 
-                #once graph executed and return go to display result code 
-                DisplayResultStreamlit(usecase,graph,user_message,config).display_result_on_ui() #use config here to display callback handler
+                config = {"callbacks": [callback_handler]}
+                DisplayResultStreamlit(usecase,graph,user_message,config).display_result_on_ui()
             except Exception as e:
                 logger.error("Main", "Graph failed", {"error": str(e)})
                 st.error(f"Error:Graph Setup Failed->{e}")
                 return
-
-
 
         except Exception as e:
             logger.error("Main", "App failed", {"error": str(e)})

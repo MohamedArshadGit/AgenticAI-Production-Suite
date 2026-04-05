@@ -194,10 +194,14 @@ class GraphBuilder:
                 return "end" #user reject access of tools
         
         if pattern == "ambiguity":
-            # user selected one of the 3 options
+            # user selected one of the 3 options or skip option
             # agent_node will re-run with the clarified message
-            logger.info("GraphBuilder", "Ambiguity resolved → agent")
-            return "agent" 
+            if approved == False:
+                # user skipped — go directly to agent without injecting option
+                logger.info("GraphBuilder", "Ambiguity skipped → agent")
+            else:
+                logger.info("GraphBuilder", "Ambiguity resolved → agent")
+            return "agent"
 
         return 'end' # ← only reaches here if BOTH sensitive tool and ambuiguity above were skipped
 

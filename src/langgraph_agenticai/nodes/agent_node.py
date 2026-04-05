@@ -9,7 +9,7 @@ from typing import Literal
 #ambiguity result(pattern 6) Schema
 class AmbiguityResult(BaseModel):
      """Schema for ambiguity detection response"""
-     status:Literal["AMBIGUOUS", "CLEAR"]=Field(
+     status: Literal["AMBIGUOUS", "CLEAR"]=Field(
         description="Whether the message is ambiguous or clear")
      option: list[str]=Field(
         default=[],
@@ -58,11 +58,18 @@ class Agentnode:
         logger.info("AgentNode", "AgentNode started",
                         {"messages_count": len(state["messages"])})
         
-        # — ambiguity check FIRST 
-        ambiguity_result =self._check_ambiguity(state)
-        if ambiguity_result:
-            logger.info("AgentNode", "Ambiguity detected — HITL triggered")
-            return ambiguity_result
+        # — ambiguity check ONLY on first message
+        # skip if conversation already has history (agent looping back after tools)
+        # skip ambiguity check if HITL was already handled
+        # hitl_pattern set means we already went through HITL once
+        # prevents ambiguity check firing again after skip or tool loop
+        already_handled_hitl = state.get("hitl_pattern") is not None
+
+        if not already_handled_hitl:
+            ambiguity_result = self._check_ambiguity(state)
+            if ambiguity_result:
+                logger.info("AgentNode", "Ambiguity detected — HITL triggered")
+                return ambiguity_result
 
         system_prompt = SystemMessage(content="""
         You are a helpful AI assistant with access to the following tools:
@@ -143,7 +150,7 @@ class Agentnode:
         
         # short messages are likely ambiguous
         # long detailed messages are likely clear
-        if len(last_human.split())>6:
+        if len(last_human.split())>5:
             return None  #skip check for long messages — likely clear
 
         try:
@@ -162,7 +169,7 @@ class Agentnode:
             logger.error("AgentNode", "Structured ambiguity check failed, skipping", {"error": str(e)})
             return None  # fail safe — don't block the user
         
-        if result.status =='AMBIGUOUS' and len(result.option)>=2:
+        if result.status =='AMBIGUOUS' and len(result.option)>=3:
             logger.info("AgentNode", "Ambiguity detected", {"options": result.option})
             return {
                 "messages"        : [],

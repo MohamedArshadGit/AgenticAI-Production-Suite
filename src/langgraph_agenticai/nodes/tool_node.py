@@ -17,7 +17,7 @@ class Toolnode:
         }
         """
         self.tools_dict ={tool.name:tool  for tool in tools} #used dict comprehension not to loop each and every tool(originally was in list) like list comprehension this is dictionary comprehension (same but {key:value}) self.tools_dict = {"calculator": calculator,"....."}
-        #where tool.name data has ? # each tool has a .name property (comes from @tool decorator by using from langchain_core.tools import tool in each tools)tool naming will be same as function name we kept ,this is done by ToolNode library automatically.
+        #where tool.name data has ? # each tool has a .name property (comes from @tool decorator by using from langchain_core.tools import tool : in each tools)tool naming will be same as function name we kept ,this is done by ToolNode library automatically.
 
     def process(self,state:State)->dict:
         """
@@ -58,7 +58,7 @@ class Toolnode:
                              {"tool_name": tool_name})
             
             results.append(ToolMessage(content=str(result),
-            tool_call_id=tool_id))## Wrap result in ToolMessage
+            tool_call_id=tool_id)) ## Wrap result in ToolMessage
             # ToolMessage tells LangGraph this is a tool result
             # Why `tool_call_id`?
             # LLM made tool call with id "call_abc123"
